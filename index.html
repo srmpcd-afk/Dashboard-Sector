@@ -730,7 +730,7 @@
           </select>
         </div>
 
-        <button class="toggle-btn" id="excludeScpBtn" type="button" aria-pressed="false">
+        <button class="toggle-btn active" id="excludeScpBtn" type="button" aria-pressed="true">
           <span class="tb-left"><i class="fa-solid fa-ban"></i> ไม่รวมข้อมูล สคพ.</span>
           <span class="tb-switch"></span>
         </button>
@@ -1061,7 +1061,7 @@
   const monthFilter = document.getElementById('monthFilter');
   const yearFilter = document.getElementById('yearFilter');
   const excludeScpBtn = document.getElementById('excludeScpBtn');
-  let excludeScp = false;
+  let excludeScp = true;
 
   excludeScpBtn.addEventListener('click', () => {
       excludeScp = !excludeScp;
@@ -1120,9 +1120,9 @@
       typeFilter.value = 'All';
       monthFilter.value = 'All';
       yearFilter.value = 'All';
-      excludeScp = false;
-      excludeScpBtn.classList.remove('active');
-      excludeScpBtn.setAttribute('aria-pressed', 'false');
+      excludeScp = true;
+      excludeScpBtn.classList.add('active');
+      excludeScpBtn.setAttribute('aria-pressed', 'true');
       updateDashboard();
   });
 
