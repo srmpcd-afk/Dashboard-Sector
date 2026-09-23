@@ -837,6 +837,23 @@
         </div>
 
         <div class="field">
+          <label>หน่วยงาน (Department)</label>
+          <div class="multiselect" id="deptFilter">
+            <button type="button" class="ms-toggle">
+              <span class="ms-toggle-text">ทั้งหมด</span>
+              <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <div class="ms-panel">
+              <div class="ms-panel-actions">
+                <button type="button" class="ms-action-btn" data-action="all">เลือกทั้งหมด</button>
+                <button type="button" class="ms-action-btn" data-action="none">ล้าง</button>
+              </div>
+              <div class="ms-options"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
           <label>ประเภทเรื่อง (Type)</label>
           <div class="multiselect" id="typeFilter">
             <button type="button" class="ms-toggle">
@@ -1109,6 +1126,7 @@
       setSheetStatus('loading', isAuto ? 'กำลังอัปเดตอัตโนมัติ...' : 'กำลังซิงค์...');
 
       // Remember current filter selections so they survive a refresh
+      const prevDept = deptFilter.getSelected();
       const prevType = typeFilter.getSelected();
       const prevMonth = monthFilter.getSelected();
       const prevYear = yearFilter.getSelected();
@@ -1125,6 +1143,7 @@
           initFilters(rawData);
 
           // Restore previous filter selections if they still exist
+          deptFilter.setSelected(prevDept);
           typeFilter.setSelected(prevType);
           monthFilter.setSelected(prevMonth);
           yearFilter.setSelected(prevYear);
@@ -1287,6 +1306,7 @@
   }
 
   // Filters
+  const deptFilter = createMultiSelect('deptFilter');
   const typeFilter = createMultiSelect('typeFilter');
   const monthFilter = createMultiSelect('monthFilter');
   const yearFilter = createMultiSelect('yearFilter');
@@ -1341,12 +1361,14 @@
   // Event Listeners
   dropZone.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', handleFile);
+  deptFilter.onChangeHandler = updateDashboard;
   typeFilter.onChangeHandler = updateDashboard;
   monthFilter.onChangeHandler = updateDashboard;
   yearFilter.onChangeHandler = updateDashboard;
   document.getElementById('reloadBtn').addEventListener('click', () => location.reload());
   document.getElementById('fileClearBtn').addEventListener('click', () => location.reload());
   document.getElementById('resetFiltersBtn').addEventListener('click', () => {
+      deptFilter.reset();
       typeFilter.reset();
       monthFilter.reset();
       yearFilter.reset();
@@ -1430,7 +1452,11 @@
   }
 
   function initFilters(data) {
-      // 1. Types
+      // 1. Departments
+      const depts = [...new Set(data.map(d => d['หน่วยงาน']).filter(Boolean))].sort();
+      deptFilter.setItems(depts);
+
+      // 2. Types
       const types = [...new Set(data.map(d => d['ประเภทเรื่อง']).filter(Boolean))].sort();
       typeFilter.setItems(types);
 
@@ -1447,6 +1473,7 @@
   }
 
   function updateDashboard() {
+      const selectedDepts = deptFilter.getSelected();
       const selectedTypes = typeFilter.getSelected();
       const selectedMonths = monthFilter.getSelected();
       const selectedYears = yearFilter.getSelected();
@@ -1454,11 +1481,12 @@
       // --- 1. Filter Data ---
       // An empty selection means "All" (no filtering on that field).
       const filteredData = rawData.filter(d => {
+          const matchDept = selectedDepts.length === 0 || selectedDepts.includes(d['หน่วยงาน']);
           const matchType = selectedTypes.length === 0 || selectedTypes.includes(d['ประเภทเรื่อง']);
           const matchMonth = selectedMonths.length === 0 || selectedMonths.includes(d['เดือน']);
           const matchYear = selectedYears.length === 0 || selectedYears.includes(d['ปี']);
           const matchScp = !excludeScp || !(d['หน่วยงาน'] && String(d['หน่วยงาน']).includes('สคพ'));
-          return matchType && matchMonth && matchYear && matchScp;
+          return matchDept && matchType && matchMonth && matchYear && matchScp;
       });
 
       document.getElementById('record-count').innerHTML =
