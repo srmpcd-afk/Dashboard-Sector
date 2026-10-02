@@ -262,7 +262,7 @@
     transition:max-height .2s ease;
   }
   .multiselect.open .ms-panel{
-    max-height:230px;
+    max-height:380px; /* ต้องมากกว่า ช่องค้นหา + ปุ่ม + รายการ เพื่อไม่ให้ขอบล่างตัดรายการ */
     border-top:1px solid var(--sidebar-line);
   }
   .ms-search{
@@ -299,7 +299,7 @@
   }
   .ms-action-btn:hover{background:var(--soft-tint-strong);}
   .ms-options{
-    max-height:180px;
+    max-height:220px;
     overflow-y:auto;
     padding:4px;
   }
@@ -477,11 +477,22 @@
   .kpi.k-ok .k-icon{background:var(--kpi-ic-ok);color:var(--ok);}
   .kpi.k-broken .k-icon{background:var(--kpi-ic-broken);color:var(--broken);}
   .kpi.k-amber .k-icon{background:var(--kpi-ic-amber);color:var(--amber);}
-  .kpi .label{font-size:12px;color:var(--ink-soft);font-weight:500;}
+  .kpi .label{font-size:12px;color:var(--ink-soft);font-weight:500;padding-right:48px;line-height:1.4;}
   .kpi .value{font-size:28px;font-weight:700;}
   .kpi .value.ok{color:var(--ok);}
   .kpi .value.broken{color:var(--broken);}
   .kpi .foot{font-size:11px;color:var(--ink-faint);}
+  .kpi .value .unit{font-size:13px;font-weight:500;color:var(--ink-soft);margin-left:4px;}
+  .kpi .pct{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;}
+  .kpi .pct.ok{color:var(--ok);}
+  .kpi .pct.amber{color:var(--amber);}
+  .kpi .pct-bar{flex:1;height:6px;border-radius:99px;background:var(--line);overflow:hidden;}
+  .kpi .pct-bar > span{display:block;height:100%;border-radius:99px;width:0;transition:width .5s ease;}
+  .kpi .pct.ok .pct-bar > span{background:var(--ok);}
+  .kpi .pct.amber .pct-bar > span{background:var(--amber);}
+  .kpi .value.amber{color:var(--amber);}
+  .kpi .pct.teal{color:var(--teal-dark);}
+  .kpi .pct.teal .pct-bar > span{background:var(--teal);}
 
   .grid2{
     display:grid;
@@ -585,7 +596,7 @@
     .kpi-row{grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
     .kpi{padding:12px 14px;}
     .kpi .value{font-size:22px;}
-    .kpi .label{font-size:11px;}
+    .kpi .label{font-size:11px;padding-right:38px;}
     .kpi .foot{font-size:10px;}
     .kpi .k-icon{width:28px;height:28px;font-size:13px;top:10px;right:12px;}
 
@@ -723,7 +734,7 @@
     html.force-mobile .kpi-row{grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
     html.force-mobile .kpi{padding:12px 14px;}
     html.force-mobile .kpi .value{font-size:22px;}
-    html.force-mobile .kpi .label{font-size:11px;}
+    html.force-mobile .kpi .label{font-size:11px;padding-right:38px;}
     html.force-mobile .kpi .foot{font-size:10px;}
     html.force-mobile .kpi .k-icon{width:28px;height:28px;font-size:13px;top:10px;right:12px;}
     html.force-mobile .grid2{gap:12px;margin-bottom:12px;}
@@ -955,28 +966,53 @@
 
         <div class="kpi-row">
           <div class="kpi k-total">
-            <div class="label">เรื่องที่ได้รับทั้งหมด</div>
-            <div class="value num" id="total-received">0</div>
-            <div class="foot">รายการที่ตรงกับตัวกรอง</div>
+            <div class="label">จำนวนเรื่องทั้งหมด</div>
+            <div class="value num" id="total-received">0<span class="unit">เรื่อง</span></div>
+            <div class="foot" id="total-foot">รายการที่ตรงกับตัวกรอง</div>
             <div class="k-icon"><i class="fa-solid fa-inbox"></i></div>
           </div>
           <div class="kpi k-ok">
             <div class="label">ดำเนินการแล้วเสร็จ</div>
-            <div class="value num ok" id="total-completed">0</div>
-            <div class="foot">เรื่องที่ปิดงานแล้ว</div>
+            <div class="value num ok" id="total-completed">0<span class="unit">เรื่อง</span></div>
+            <div class="pct ok"><span id="pct-completed">0.0%</span><div class="pct-bar"><span id="bar-completed"></span></div></div>
+            <div class="foot">คิดเป็นร้อยละของเรื่องทั้งหมด</div>
             <div class="k-icon"><i class="fa-solid fa-circle-check"></i></div>
           </div>
-          <div class="kpi k-broken">
-            <div class="label">เกินกำหนดเวลา</div>
-            <div class="value num broken" id="total-overdue">0</div>
-            <div class="foot">เรื่องที่เกินระยะเวลา</div>
-            <div class="k-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
-          </div>
           <div class="kpi k-amber">
-            <div class="label">ความครบถ้วนข้อมูล</div>
-            <div class="value num" id="data-quality">0%</div>
-            <div class="foot">สัดส่วนข้อมูลที่นำเข้าครบถ้วน</div>
+            <div class="label">อยู่ระหว่างดำเนินการ</div>
+            <div class="value num amber" id="total-inprogress">0<span class="unit">เรื่อง</span></div>
+            <div class="pct amber"><span id="pct-inprogress">0.0%</span><div class="pct-bar"><span id="bar-inprogress"></span></div></div>
+            <div class="foot">คิดเป็นร้อยละของเรื่องทั้งหมด</div>
+            <div class="k-icon"><i class="fa-solid fa-hourglass-half"></i></div>
+          </div>
+          <div class="kpi k-total">
+            <div class="label">ความครบถ้วนของข้อมูล (เรื่องที่แล้วเสร็จ)</div>
+            <div class="value num" id="data-quality-count">0<span class="unit">เรื่อง</span></div>
+            <div class="pct teal"><span id="data-quality">0.0%</span><div class="pct-bar"><span id="bar-quality"></span></div></div>
+            <div class="foot" id="data-quality-foot">นำเข้าข้อมูลครบถ้วน จากเรื่องที่แล้วเสร็จ</div>
             <div class="k-icon"><i class="fa-solid fa-database"></i></div>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="panel">
+            <h2><i class="fa-solid fa-circle-check"></i> ดำเนินการแล้วเสร็จ: ตรงเกณฑ์ vs เกินเกณฑ์ (45 วันทำการ)</h2>
+            <div class="chart-wrap centered"><canvas id="completedSlaChart"></canvas></div>
+          </div>
+          <div class="panel">
+            <h2><i class="fa-solid fa-hourglass-half"></i> อยู่ระหว่างดำเนินการ: ตรงเกณฑ์ vs เกินเกณฑ์ (45 วันทำการ)</h2>
+            <div class="chart-wrap centered"><canvas id="inprogressSlaChart"></canvas></div>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="panel">
+            <h2><i class="fa-solid fa-chart-simple"></i> ดำเนินการแล้วเสร็จ แยกตามหน่วยงาน: ตรงเกณฑ์ vs เกินเกณฑ์ (เรื่อง)</h2>
+            <div class="chart-wrap" id="completedDeptWrap"><canvas id="completedDeptChart"></canvas></div>
+          </div>
+          <div class="panel">
+            <h2><i class="fa-solid fa-chart-simple"></i> อยู่ระหว่างดำเนินการ แยกตามหน่วยงาน: ตรงเกณฑ์ vs เกินเกณฑ์ (เรื่อง)</h2>
+            <div class="chart-wrap" id="inprogressDeptWrap"><canvas id="inprogressDeptChart"></canvas></div>
           </div>
         </div>
 
@@ -1031,8 +1067,22 @@
   ];
 
   // Shared helper to read a numeric field from a row (handles a possible trailing space in the header)
+  // แปลงค่าตัวเลขจากชีท (รองรับ 1,234 / ช่องว่าง / ทศนิยม / ค่าว่าง)
+  function toNum(v) {
+      if (v === null || v === undefined || v === '') return 0;
+      const n = parseFloat(String(v).replace(/[,\s]/g, ''));
+      return isFinite(n) ? n : 0;
+  }
   function getRowVal(row, key) {
-      return parseInt(row[key] || row[key + ' '] || 0) || 0;
+      return toNum(row[key] !== undefined && row[key] !== '' ? row[key] : row[key + ' ']);
+  }
+
+  // แถวที่นับเป็นข้อมูลจริง: ต้องมีหน่วยงาน และไม่ใช่แถวสรุปผลรวมของชีท (กันนับซ้ำ)
+  function isDataRow(row) {
+      const dept = String(row['หน่วยงาน'] || '').trim();
+      if (!dept) return false;
+      if (/^(รวม|ผลรวม|ทั้งหมด|total|grand total)/i.test(dept)) return false;
+      return true;
   }
 
   const fileInput = document.getElementById('fileInput');
@@ -1176,7 +1226,7 @@
 
       try {
           const resp = await fetchSheetViaJSONP();
-          const newData = gvizResponseToRows(resp).filter(row => row['หน่วยงาน'] && row['เดือน']);
+          const newData = gvizResponseToRows(resp).filter(isDataRow);
 
           if (newData.length === 0) {
               throw new Error('ไม่พบข้อมูลในชีท (ตรวจสอบสิทธิ์การแชร์ หรือชื่อคอลัมน์)');
@@ -1378,12 +1428,14 @@
   const statusFilter = createMultiSelect('statusFilter');
   statusFilter.setItems(['ครบถ้วน', 'ไม่ครบถ้วน']);
   const excludeScpBtn = document.getElementById('excludeScpBtn');
-  let excludeScp = true;
+  let excludeScp = true; // ค่าเริ่มต้น: ไม่รวม สคพ. (ปิดสวิตช์เพื่อรวมทุกหน่วยงาน)
 
   excludeScpBtn.addEventListener('click', () => {
       excludeScp = !excludeScp;
       excludeScpBtn.classList.toggle('active', excludeScp);
       excludeScpBtn.setAttribute('aria-pressed', String(excludeScp));
+      // อัปเดตรายการหน่วยงาน (ค่าที่เลือกไว้แต่ไม่อยู่ในรายการแล้วจะถูกเอาออกอัตโนมัติ)
+      if (rawData.length > 0) deptFilter.setItems(getDeptList(rawData));
       updateDashboard();
   });
 
@@ -1441,9 +1493,10 @@
       monthFilter.reset();
       yearFilter.reset();
       statusFilter.reset();
-      excludeScp = true;
+      excludeScp = true; // กลับไปเป็นค่าเริ่มต้น
       excludeScpBtn.classList.add('active');
       excludeScpBtn.setAttribute('aria-pressed', 'true');
+      if (rawData.length > 0) deptFilter.setItems(getDeptList(rawData));
       updateDashboard();
   });
 
@@ -1500,7 +1553,7 @@
           encoding: "UTF-8",
           complete: function(results) {
               // Pre-process: Filter out empty rows
-              rawData = results.data.filter(row => row['หน่วยงาน'] && row['เดือน']);
+              rawData = results.data.filter(isDataRow);
 
               // Initialize Filters
               initFilters(rawData);
@@ -1520,10 +1573,16 @@
       });
   }
 
+  // รายชื่อหน่วยงานในตัวกรอง: ถ้าเปิดโหมด "ไม่รวม สคพ." จะตัดทุกหน่วยงานที่มีคำว่า สคพ ออก
+  function getDeptList(data) {
+      return [...new Set(data.map(d => d['หน่วยงาน']).filter(Boolean))]
+          .filter(name => !(excludeScp && String(name).includes('สคพ')))
+          .sort();
+  }
+
   function initFilters(data) {
       // 1. Departments
-      const depts = [...new Set(data.map(d => d['หน่วยงาน']).filter(Boolean))].sort();
-      deptFilter.setItems(depts);
+      deptFilter.setItems(getDeptList(data));
 
       // 2. Types
       const types = [...new Set(data.map(d => d['ประเภทเรื่อง']).filter(Boolean))].sort();
@@ -1568,6 +1627,8 @@
 
       // --- 2. Aggregate ---
       const stats = aggregateData(filteredData);
+      document.getElementById('total-foot').textContent =
+          `ผลรวมจาก ${filteredData.length.toLocaleString()} แถว · ` + (excludeScp ? 'ไม่รวม สคพ.' : 'รวมทุกหน่วยงาน');
 
       // --- 3. Update UI ---
       updateKPIs(stats);
@@ -1577,15 +1638,17 @@
   function aggregateData(data) {
       let totalReceived = 0, totalCompleted = 0, totalOverdue = 0;
       let dataComplete = 0, dataIncomplete = 0;
+      let compWithin = 0, compOver = 0, inprogWithin = 0, inprogOver = 0;
+      let qualOkCompleted = 0;
 
       const deptStats = {};
       const monthlyStats = {};
       const deptTypeStats = {};
 
       data.forEach(row => {
-          const getVal = (key) => parseInt(row[key] || row[key + ' '] || 0);
+          const getVal = (key) => getRowVal(row, key);
           const dept = row['หน่วยงาน'];
-          const month = row['เดือน'];
+          const month = row['เดือน'] || 'ไม่ระบุเดือน';
           const type = row['ประเภทเรื่อง'] || 'อื่นๆ';
 
           const received = getVal('จำนวนเรื่องที่ได้รับ (เรื่อง)');
@@ -1596,6 +1659,19 @@
           const rowComplete = getVal('นำเข้าข้อมูลครบถ้วน (เรื่อง)');
           const rowIncomplete = getVal('ยังนำเข้าข้อมูลไม่ครบถ้วน (เรื่อง)');
 
+          // --- สถานะเทียบเกณฑ์ 45 วันทำการ ---
+          // แล้วเสร็จ: ตรงเกณฑ์ = คอลัมน์ 45 วัน, เกินเกณฑ์ = แล้วเสร็จ - ตรงเกณฑ์
+          const rowCompOver = Math.max(0, completed - within);
+          const rowCompWithin = completed - rowCompOver;
+          // อยู่ระหว่างดำเนินการ = ได้รับ - แล้วเสร็จ
+          // เกินเกณฑ์ = (เกินระยะเวลาทั้งหมด - ที่แล้วเสร็จแต่เกิน) ไม่เกินจำนวนที่ค้างอยู่
+          const rowInprog = Math.max(0, received - completed);
+          const rowInprogOver = Math.min(rowInprog, Math.max(0, overdue - rowCompOver));
+          const rowInprogWithin = rowInprog - rowInprogOver;
+          qualOkCompleted += Math.min(rowComplete, completed);
+          compWithin += rowCompWithin; compOver += rowCompOver;
+          inprogWithin += rowInprogWithin; inprogOver += rowInprogOver;
+
           // Global totals
           totalReceived += received;
           totalCompleted += completed;
@@ -1605,13 +1681,19 @@
 
           // Dept Stats
           if (!deptStats[dept]) deptStats[dept] = {
-              received: 0, completed: 0, overdue: 0, within: 0,
-              qComplete: 0, qIncomplete: 0
+              received: 0, completed: 0, inprogress: 0, overdue: 0, within: 0,
+              qComplete: 0, qIncomplete: 0,
+              compWithin: 0, compOver: 0, inprogWithin: 0, inprogOver: 0
           };
           deptStats[dept].received += received;
           deptStats[dept].completed += completed;
+          deptStats[dept].inprogress += rowInprog;
           deptStats[dept].overdue += overdue;
           deptStats[dept].within += within;
+          deptStats[dept].compWithin += rowCompWithin;
+          deptStats[dept].compOver += rowCompOver;
+          deptStats[dept].inprogWithin += rowInprogWithin;
+          deptStats[dept].inprogOver += rowInprogOver;
           deptStats[dept].qComplete += rowComplete;
           deptStats[dept].qIncomplete += rowIncomplete;
 
@@ -1627,22 +1709,201 @@
 
       return {
           totalReceived, totalCompleted, totalOverdue, dataComplete, dataIncomplete,
+          compWithin, compOver, inprogWithin, inprogOver, qualOkCompleted,
           deptStats, monthlyStats, deptTypeStats
       };
   }
 
   function updateKPIs(stats) {
-      document.getElementById('total-received').innerText = stats.totalReceived.toLocaleString();
-      document.getElementById('total-completed').innerText = stats.totalCompleted.toLocaleString();
-      document.getElementById('total-overdue').innerText = stats.totalOverdue.toLocaleString();
+      const total = stats.totalReceived;
+      const completed = stats.compWithin + stats.compOver;
+      const inprog = stats.inprogWithin + stats.inprogOver;
+      const pct = (n) => total > 0 ? (n / total) * 100 : 0;
+      const unit = '<span class="unit">เรื่อง</span>';
 
-      const totalRows = stats.dataComplete + stats.dataIncomplete;
-      const qualityVal = totalRows > 0 ? ((stats.dataComplete / totalRows) * 100).toFixed(1) : 0;
-      document.getElementById('data-quality').innerText = qualityVal + '%';
+      document.getElementById('total-received').innerHTML = total.toLocaleString() + unit;
+      document.getElementById('total-completed').innerHTML = completed.toLocaleString() + unit;
+      document.getElementById('total-inprogress').innerHTML = inprog.toLocaleString() + unit;
+
+      document.getElementById('pct-completed').textContent = pct(completed).toFixed(1) + '%';
+      document.getElementById('pct-inprogress').textContent = pct(inprog).toFixed(1) + '%';
+      document.getElementById('bar-completed').style.width = pct(completed).toFixed(1) + '%';
+      document.getElementById('bar-inprogress').style.width = pct(inprog).toFixed(1) + '%';
+
+      // ความครบถ้วนของข้อมูล คิดเฉพาะเรื่องที่ดำเนินการแล้วเสร็จ
+      const qOk = Math.min(stats.qualOkCompleted, completed);
+      const qPct = completed > 0 ? (qOk / completed) * 100 : 0;
+      document.getElementById('data-quality-count').innerHTML = qOk.toLocaleString() + unit;
+      document.getElementById('data-quality').textContent = qPct.toFixed(1) + '%';
+      document.getElementById('bar-quality').style.width = qPct.toFixed(1) + '%';
+      document.getElementById('data-quality-foot').textContent =
+          'นำเข้าข้อมูลครบถ้วน จากเรื่องที่แล้วเสร็จ ' + completed.toLocaleString() + ' เรื่อง';
+  }
+
+  // Doughnut: ตรงเกณฑ์ vs เกินเกณฑ์ พร้อมแสดง จำนวน และ % ทั้งใน legend, บนชิ้นกราฟ และ tooltip
+  const slaCenterPlugin = {
+      id: 'slaCenter',
+      afterDraw(chart, args, opts) {
+          if (!opts || opts.total === undefined) return;
+          const { ctx, chartArea } = chart;
+          const cx = (chartArea.left + chartArea.right) / 2;
+          const cy = (chartArea.top + chartArea.bottom) / 2;
+          const ds = chart.getDatasetMeta(0);
+          ctx.save();
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = Chart.defaults.color;
+          ctx.font = '600 24px Sarabun, sans-serif';
+          ctx.fillText(opts.total.toLocaleString(), cx, cy - 8);
+          ctx.font = '12px Sarabun, sans-serif';
+          ctx.fillText('เรื่อง', cx, cy + 14);
+          // % บนชิ้นกราฟ
+          const data = chart.data.datasets[0].data;
+          ds.data.forEach((arc, i) => {
+              if (!data[i] || opts.total === 0) return;
+              const p = (data[i] / opts.total) * 100;
+              if (p < 4) return;
+              const ang = (arc.startAngle + arc.endAngle) / 2;
+              const r = (arc.innerRadius + arc.outerRadius) / 2;
+              ctx.fillStyle = '#fff';
+              ctx.font = '600 13px Sarabun, sans-serif';
+              ctx.fillText(p.toFixed(1) + '%', arc.x + Math.cos(ang) * r, arc.y + Math.sin(ang) * r);
+          });
+          ctx.restore();
+      }
+  };
+
+  // วาดตัวเลขที่ปลายแท่ง (horizontal bar) — รองรับแท่งแบบ stacked:
+  // แสดงยอดรวมที่ปลายแท่ง และ (ถ้า segments:true) แสดงจำนวนในแต่ละช่วงสี
+  const barValuePlugin = {
+      id: 'barValues',
+      afterDatasetsDraw(chart, args, opts) {
+          if (!opts || !opts.enabled) return;
+          const { ctx } = chart;
+          const metas = chart.data.datasets.map((_, di) => chart.getDatasetMeta(di));
+          ctx.save();
+          ctx.font = '600 12px Sarabun, sans-serif';
+          ctx.textBaseline = 'middle';
+          chart.data.labels.forEach((_, i) => {
+              let total = 0, endX = null, y = null;
+              metas.forEach((meta, di) => {
+                  if (meta.hidden) return;
+                  const bar = meta.data[i];
+                  if (!bar) return;
+                  const v = Number(chart.data.datasets[di].data[i]) || 0;
+                  total += v;
+                  y = bar.y;
+                  if (endX === null) endX = bar.base;
+                  if (v > 0) {
+                      endX = Math.max(endX, bar.x);
+                      if (opts.segments && Math.abs(bar.x - bar.base) >= 24) {
+                          ctx.fillStyle = '#fff';
+                          ctx.textAlign = 'center';
+                          ctx.fillText(v.toLocaleString(), (bar.x + bar.base) / 2, bar.y);
+                      }
+                  }
+              });
+              if (y === null) return;
+              ctx.fillStyle = Chart.defaults.color;
+              ctx.textAlign = 'left';
+              ctx.fillText(total.toLocaleString(), endX + 6, y);
+          });
+          ctx.restore();
+      }
+  };
+
+  // กราฟแท่งแยกตามหน่วยงาน แบบ stacked: ตรงตามเกณฑ์ + เกินเกณฑ์ (45 วันทำการ)
+  // prefix = 'comp' (แล้วเสร็จ) หรือ 'inprog' (อยู่ระหว่างดำเนินการ)
+  function renderDeptBar(canvasId, wrapId, depts, prefix, stats, withinColor) {
+      const withinKey = prefix + 'Within', overKey = prefix + 'Over';
+      const rows = depts
+          .map(d => ({ d, within: stats.deptStats[d][withinKey], over: stats.deptStats[d][overKey] }))
+          .sort((a, b) => (b.within + b.over) - (a.within + a.over));
+      document.getElementById(wrapId).style.height = Math.max(340, rows.length * 30 + 90) + 'px';
+      createOrUpdateChart(canvasId, 'bar', {
+          labels: rows.map(r => r.d),
+          datasets: [
+              { label: 'ตรงตามเกณฑ์ (≤45 วันทำการ)', data: rows.map(r => r.within), backgroundColor: withinColor, borderRadius: 4 },
+              { label: 'เกินเกณฑ์ (>45 วันทำการ)',   data: rows.map(r => r.over),   backgroundColor: '#E0457A',  borderRadius: 4 }
+          ]
+      }, {
+          indexAxis: 'y',
+          layout: { padding: { right: 50 } },
+          scales: {
+              x: { stacked: true, beginAtZero: true, ticks: { precision: 0 } },
+              y: { stacked: true }
+          },
+          plugins: {
+              legend: { position: 'bottom' },
+              tooltip: {
+                  mode: 'index',
+                  intersect: false,
+                  callbacks: {
+                      label: (c) => {
+                          const r = rows[c.dataIndex];
+                          const total = r.within + r.over;
+                          const pct = total > 0 ? (c.parsed.x / total * 100).toFixed(1) : '0.0';
+                          return ` ${c.dataset.label}: ${c.parsed.x.toLocaleString()} เรื่อง (${pct}%)`;
+                      },
+                      footer: (items) => {
+                          const r = rows[items[0].dataIndex];
+                          return `รวม ${(r.within + r.over).toLocaleString()} เรื่อง`;
+                      }
+                  }
+              },
+              barValues: { enabled: true, segments: true }
+          }
+      });
+  }
+
+  function renderSlaDoughnut(canvasId, withinVal, overVal, withinColor = '#2FA36B') {
+      const total = withinVal + overVal;
+      const pctOf = (n) => total > 0 ? (n / total * 100).toFixed(1) : '0.0';
+      const names = ['ตรงตามเกณฑ์ (≤45 วันทำการ)', 'เกินเกณฑ์ (>45 วันทำการ)'];
+      createOrUpdateChart(canvasId, 'doughnut', {
+          labels: names,
+          datasets: [{
+              data: [withinVal, overVal],
+              backgroundColor: [withinColor, '#E0457A'],
+              borderWidth: 2
+          }]
+      }, {
+          cutout: '58%',
+          plugins: {
+              slaCenter: { total },
+              legend: {
+                  position: 'bottom',
+                  labels: {
+                      generateLabels(chart) {
+                          const d = chart.data.datasets[0];
+                          return chart.data.labels.map((l, i) => ({
+                              text: `${l}: ${d.data[i].toLocaleString()} เรื่อง (${pctOf(d.data[i])}%)`,
+                              fillStyle: d.backgroundColor[i],
+                              strokeStyle: d.backgroundColor[i],
+                              fontColor: Chart.defaults.color,
+                              hidden: !chart.getDataVisibility(i),
+                              index: i
+                          }));
+                      }
+                  }
+              },
+              tooltip: {
+                  callbacks: {
+                      label: (c) => ` ${c.label}: ${c.parsed.toLocaleString()} เรื่อง (${pctOf(c.parsed)}%)`
+                  }
+              }
+          }
+      });
   }
 
   function renderCharts(stats, rawDataForTypes) {
       const depts = Object.keys(stats.deptStats);
+
+      // --- 0. SLA doughnuts (แล้วเสร็จ / อยู่ระหว่างดำเนินการ) ---
+      renderSlaDoughnut('completedSlaChart', stats.compWithin, stats.compOver);
+      renderSlaDoughnut('inprogressSlaChart', stats.inprogWithin, stats.inprogOver, '#2563EB');
+      renderDeptBar('completedDeptChart', 'completedDeptWrap', depts, 'comp', stats, '#2FA36B');
+      renderDeptBar('inprogressDeptChart', 'inprogressDeptWrap', depts, 'inprog', stats, '#2563EB');
 
       // --- 1. Dept Overview ---
       const deptReceived = depts.map(d => stats.deptStats[d].received);
@@ -1726,6 +1987,8 @@
           indexAxis: 'y',
       });
   }
+
+  Chart.register(slaCenterPlugin, barValuePlugin);
 
   function createOrUpdateChart(canvasId, type, data, extraOptions = {}) {
       const ctx = document.getElementById(canvasId).getContext('2d');
