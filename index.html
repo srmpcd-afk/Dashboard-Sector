@@ -781,6 +781,28 @@
     html.force-mobile .kpi-row{grid-template-columns:1fr;}
     html.force-mobile .panel .chart-wrap{height:200px;}
 
+
+  /* ===== Chart data table modal (คลิกกราฟ -> ตาราง) ===== */
+  canvas.chart-clickable{cursor:pointer;}
+  .cd-backdrop{position:fixed;inset:0;background:rgba(40,10,55,.55);display:none;align-items:center;justify-content:center;z-index:9999;padding:16px;}
+  .cd-backdrop.open{display:flex;}
+  .cd-modal{background:var(--surface);color:var(--ink);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.35);width:min(920px,100%);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;}
+  .cd-head{display:flex;align-items:flex-start;gap:12px;padding:16px 18px 10px;border-bottom:1px solid var(--line);}
+  .cd-title{flex:1;font-size:15px;font-weight:600;line-height:1.4;}
+  .cd-sub{font-size:12px;color:var(--ink-soft);font-weight:400;margin-top:2px;}
+  .cd-close{border:0;background:var(--surface-soft);color:var(--ink);width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px;flex-shrink:0;}
+  .cd-close:hover{background:var(--soft-tint-strong);}
+  .cd-body{overflow:auto;padding:0 18px 16px;}
+  .cd-table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:12px;}
+  .cd-table th,.cd-table td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;}
+  .cd-table th:first-child,.cd-table td:first-child{text-align:left;white-space:normal;}
+  .cd-table thead th{position:sticky;top:0;background:var(--soft-tint-strong);color:var(--ink);font-weight:600;z-index:1;}
+  .cd-table tbody tr:hover{background:var(--soft-tint);}
+  .cd-table tfoot td{font-weight:700;background:var(--soft-tint);border-top:2px solid var(--soft-border);}
+  .cd-dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:baseline;}
+  .sla-side{cursor:pointer;}
+  .kpi-row .kpi{cursor:pointer;transition:transform .15s ease, box-shadow .15s ease;}
+  .kpi-row .kpi:hover{transform:translateY(-2px);}
 </style>
 </head>
 <body>
@@ -1312,7 +1334,7 @@
 
   // ===== Google Sheet live sync =====
   const SHEET_ID = '1oB9yDgchIGPXj8ofOzWs16OVvWfX6JkTcc4ctqKBjkE';
-  const SHEET_UPDATE_NAME = 'วันที่อัพเดตข้อมูล'; // ชีทที่เก็บวันที่อัปเดตข้อมูล (อ่านจากเซลล์ A2)
+  const SHEET_UPDATE_NAME = 'วันที่อัพเดทข้อมูล'; // ชีทที่เก็บวันที่อัปเดตข้อมูล (อ่านจากเซลล์ A2)
   const SHEET_UPDATE_CELL = 'A2';
   const SHEET_NAME = 'combined_kpi_unit'; // ชื่อแท็บในชีท — เปลี่ยนได้ถ้าข้อมูลอยู่คนละแท็บ
 
@@ -1351,7 +1373,7 @@
 
           const script = document.createElement('script');
           const tqx = encodeURIComponent(`out:json;responseHandler:${cbName}`);
-          script.src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=${tqx}&sheet=${encodeURIComponent(sheetName)}${extraParams}&_ts=${Date.now()}`;
+          script.src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=${tqx}${sheetName ? '&sheet=' + encodeURIComponent(sheetName) : ''}${extraParams}&_ts=${Date.now()}`;
           script.onerror = () => {
               cleanup();
               reject(new Error('โหลดข้อมูลจาก Google Sheet ไม่สำเร็จ (ตรวจสอบการแชร์ชีทหรืออินเทอร์เน็ต)'));
@@ -1386,29 +1408,57 @@
       });
   }
 
-  // อ่านวันที่อัปเดตข้อมูลจากชีท "วันที่อัพเดตข้อมูล" เซลล์ A2
-  // คืนข้อความวันที่ภาษาไทย เช่น "6 ต.ค. 2569" หรือ null ถ้าอ่านไม่ได้
-  async function fetchUpdateDateText() {
-      try {
-          const resp = await fetchSheetViaJSONP(SHEET_UPDATE_NAME, '&headers=0&range=' + SHEET_UPDATE_CELL);
-          const rows = resp && resp.table && resp.table.rows;
-          const cell = rows && rows[0] && rows[0].c && rows[0].c[0];
-          if (!cell || (cell.v === null || cell.v === undefined) && !cell.f) return null;
-          let raw = cell.v;
-          let dt = null;
-          if (typeof raw === 'string') {
-              const m = raw.match(/^Date\((\d+),(\d+),(\d+)/);
-              if (m) dt = new Date(Number(m[1]), Number(m[2]), Number(m[3]));
-          }
-          if (!dt) dt = parseFlexibleDate(raw);
-          if (!dt && cell.f) dt = parseFlexibleDate(cell.f);
+  // อ่านวันที่อัปเดตข้อมูลจากชีทที่ 2 "วันที่อัพเดตข้อมูล" เซลล์ A2
+  // - ถ้าชื่อชีทไม่ตรง Google จะ "เด้งไปชีทแรก" ทำให้ได้ค่าอย่าง "สตพ.1" มาแทน
+  //   จึงต้องตรวจว่าค่าที่ได้เป็นวันที่จริง ๆ เท่านั้น ไม่งั้นลองชื่อสะกดอื่น/ลอง gid ต่อ
+  const SHEET_UPDATE_GID = ''; // (ไม่บังคับ) ใส่เลข gid ของชีทที่ 2 ได้ ดูจาก URL ท้ายสุด ...#gid=123456
+
+  const THAI_MONTHS = [
+      ['ม.ค.','มกราคม'],['ก.พ.','กุมภาพันธ์'],['มี.ค.','มีนาคม'],['เม.ย.','เมษายน'],
+      ['พ.ค.','พฤษภาคม'],['มิ.ย.','มิถุนายน'],['ก.ค.','กรกฎาคม'],['ส.ค.','สิงหาคม'],
+      ['ก.ย.','กันยายน'],['ต.ค.','ตุลาคม'],['พ.ย.','พฤศจิกายน'],['ธ.ค.','ธันวาคม']
+  ];
+  function parseThaiDateText(str) {
+      const t = String(str || '').replace(/\s+/g, ' ').trim();
+      const m = t.match(/(\d{1,2})\s*([^\d\s]+(?:\.[^\d\s]*)?)\s*(\d{4})/);
+      if (!m) return null;
+      const mi = THAI_MONTHS.findIndex(p => m[2] === p[0] || m[2] === p[1] || m[2].startsWith(p[1]) || m[2] === p[0].replace(/\.$/, ''));
+      if (mi < 0) return null;
+      let y = Number(m[3]); if (y > 2400) y -= 543;
+      const dt = new Date(y, mi, Number(m[1]));
+      return isNaN(dt.getTime()) ? null : dt;
+  }
+
+  function updateCellToText(cell) {
+      if (!cell) return null;
+      const candidates = [cell.v, cell.f];
+      for (const raw of candidates) {
+          if (raw === null || raw === undefined || raw === '') continue;
+          const dt = parseFlexibleDate(raw) || parseThaiDateText(raw);
           if (dt) return dt.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
-          // ถ้าไม่ใช่รูปแบบวันที่ที่รู้จัก แสดงข้อความตามที่เขียนไว้ในเซลล์
-          return String(cell.f || raw).trim() || null;
-      } catch (e) {
-          console.warn('อ่านวันที่อัปเดตจากชีทไม่ได้:', e);
-          return null;
       }
+      return null; // ไม่ใช่วันที่ (เช่น "สตพ.1") -> ไม่เอามาแสดง
+  }
+
+  async function fetchUpdateDateText() {
+      const names = [SHEET_UPDATE_NAME, 'วันที่อัพเดตข้อมูล', 'วันที่อัปเดตข้อมูล', 'วันที่อัปเดทข้อมูล'];
+      const attempts = [];
+      if (SHEET_UPDATE_GID) attempts.push({ gid: SHEET_UPDATE_GID });
+      names.forEach(n => attempts.push({ name: n }));
+      for (const a of attempts) {
+          try {
+              const resp = a.gid
+                  ? await fetchSheetViaJSONP(null, '&gid=' + encodeURIComponent(a.gid) + '&headers=0&range=' + SHEET_UPDATE_CELL)
+                  : await fetchSheetViaJSONP(a.name, '&headers=0&range=' + SHEET_UPDATE_CELL);
+              const rows = resp && resp.table && resp.table.rows;
+              const cell = rows && rows[0] && rows[0].c && rows[0].c[0];
+              const text = updateCellToText(cell);
+              if (text) return text;
+          } catch (e) {
+              console.warn('อ่านวันที่อัปเดตจากชีทไม่ได้:', a, e);
+          }
+      }
+      return null;
   }
 
   function setSheetStatus(state, text) {
@@ -1961,7 +2011,9 @@
       };
   }
 
+  let lastKpiStats = null;
   function updateKPIs(stats) {
+      lastKpiStats = stats;
       const total = stats.totalReceived;
       const completed = stats.compWithin + stats.compOver;
       const inprog = stats.inprogWithin + stats.inprogOver;
@@ -2242,6 +2294,160 @@
       });
   }
 
+
+  // ===== คลิกกราฟ -> แสดงตารางข้อมูล (สร้างจากข้อมูลชุดเดียวกับกราฟ จึงตรงกันเสมอ) =====
+  const CHART_TABLE_CFG = {
+      completedSlaChart:   { first: 'กลุ่ม' },
+      inprogressSlaChart:  { first: 'กลุ่ม' },
+      completedDeptChart:  { first: 'หน่วยงาน', total: true, pct: true },
+      inprogressDeptChart: { first: 'หน่วยงาน', total: true, pct: true },
+      deptChart:           { first: 'หน่วยงาน' },
+      typeDeptChart:       { first: 'หน่วยงาน', total: true },
+      trendChart:          { first: 'เดือน' },
+      effChart:            { first: 'หน่วยงาน', total: true },
+      qualityChart:        { first: 'รายการ' },
+      incompleteDeptChart: { first: 'หน่วยงาน' }
+  };
+
+  const cdBackdrop = document.createElement('div');
+  cdBackdrop.className = 'cd-backdrop';
+  cdBackdrop.innerHTML = '<div class="cd-modal" role="dialog" aria-modal="true">' +
+      '<div class="cd-head"><div class="cd-title"><span id="cdTitle"></span><div class="cd-sub" id="cdSub"></div></div>' +
+      '<button type="button" class="cd-close" id="cdClose" aria-label="ปิด">&times;</button></div>' +
+      '<div class="cd-body" id="cdBody"></div></div>';
+  document.body.appendChild(cdBackdrop);
+  const cdClose = () => cdBackdrop.classList.remove('open');
+  cdBackdrop.addEventListener('click', e => { if (e.target === cdBackdrop) cdClose(); });
+  document.getElementById('cdClose').addEventListener('click', cdClose);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') cdClose(); });
+
+  function cdEsc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  const cdNum = (n) => (Number(n) || 0).toLocaleString('th-TH');
+
+  function openChartTable(canvasId) {
+      const chart = charts[canvasId];
+      if (!chart) return;
+      const cfg = CHART_TABLE_CFG[canvasId] || { first: 'รายการ' };
+      const labels = chart.data.labels || [];
+      const dss = chart.data.datasets || [];
+      const panel = document.getElementById(canvasId).closest('.panel');
+      const h2 = panel && panel.querySelector('h2');
+      document.getElementById('cdTitle').textContent = h2 ? h2.textContent.replace(/\s+/g, ' ').trim() : 'ข้อมูลกราฟ';
+      document.getElementById('cdSub').textContent = document.getElementById('asOf') ? document.getElementById('asOf').textContent : '';
+
+      const colorOf = (ds, idx) => {
+          const c = Array.isArray(ds.backgroundColor) ? ds.backgroundColor[idx] : (ds.backgroundColor || ds.borderColor);
+          return typeof c === 'string' ? c : '#999';
+      };
+      let html = '<table class="cd-table">';
+
+      if (chart.config.type === 'doughnut' || chart.config.type === 'pie') {
+          const data = (dss[0] && dss[0].data) || [];
+          const total = data.reduce((a, b) => a + (Number(b) || 0), 0);
+          html += '<thead><tr><th>' + cdEsc(cfg.first) + '</th><th>จำนวน (เรื่อง)</th><th>ร้อยละ</th></tr></thead><tbody>';
+          labels.forEach((lb, i) => {
+              const v = Number(data[i]) || 0;
+              html += '<tr><td><span class="cd-dot" style="background:' + colorOf(dss[0], i) + '"></span>' + cdEsc(lb) + '</td><td>' + cdNum(v) + '</td><td>' + (total > 0 ? (v / total * 100).toFixed(1) : '0.0') + '%</td></tr>';
+          });
+          html += '</tbody><tfoot><tr><td>รวม</td><td>' + cdNum(total) + '</td><td>' + (total > 0 ? '100.0%' : '0.0%') + '</td></tr></tfoot>';
+      } else {
+          html += '<thead><tr><th>' + cdEsc(cfg.first) + '</th>' +
+              dss.map(ds => '<th><span class="cd-dot" style="background:' + colorOf(ds) + '"></span>' + cdEsc(ds.label || '') + '</th>').join('') +
+              (cfg.total ? '<th>รวม</th>' : '') + '</tr></thead><tbody>';
+          const colSums = dss.map(() => 0);
+          let grand = 0;
+          labels.forEach((lb, r) => {
+              const rowTotal = dss.reduce((a, ds) => a + (Number(ds.data[r]) || 0), 0);
+              grand += rowTotal;
+              html += '<tr><td>' + cdEsc(lb) + '</td>' + dss.map((ds, c) => {
+                  const v = Number(ds.data[r]) || 0;
+                  colSums[c] += v;
+                  const p = cfg.pct ? ' <span style="color:var(--ink-soft)">(' + (rowTotal > 0 ? (v / rowTotal * 100).toFixed(1) : '0.0') + '%)</span>' : '';
+                  return '<td>' + cdNum(v) + p + '</td>';
+              }).join('') + (cfg.total ? '<td><b>' + cdNum(rowTotal) + '</b></td>' : '') + '</tr>';
+          });
+          html += '</tbody>';
+          // แถวรวม: ข้ามคอลัมน์ที่เป็นเส้นสะสม (บวกรวมแล้วไม่มีความหมาย)
+          html += '<tfoot><tr><td>รวม</td>' + dss.map((ds, c) => {
+              if (ds.type === 'line') return '<td>–</td>';
+              const p = cfg.pct ? ' <span style="font-weight:400">(' + (grand > 0 ? (colSums[c] / grand * 100).toFixed(1) : '0.0') + '%)</span>' : '';
+              return '<td>' + cdNum(colSums[c]) + p + '</td>';
+          }).join('') + (cfg.total ? '<td>' + cdNum(grand) + '</td>' : '') + '</tr></tfoot>';
+      }
+      html += '</table>';
+      if (!labels.length) html = '<div style="padding:24px;text-align:center;color:var(--ink-soft)">ไม่มีข้อมูล</div>';
+      document.getElementById('cdBody').innerHTML = html;
+      cdBackdrop.classList.add('open');
+  }
+
+
+  // คลิกที่การ์ดสรุปด้านข้างโดนัท (ตรงเกณฑ์ / เกินเกณฑ์) -> เปิดตารางของกราฟนั้น
+  [['completedSlaSide','completedSlaChart'],['inprogressSlaSide','inprogressSlaChart']].forEach(([sideId, canvasId]) => {
+      const el = document.getElementById(sideId);
+      if (!el) return;
+      el.title = 'คลิกเพื่อดูตารางข้อมูล';
+      el.addEventListener('click', () => openChartTable(canvasId));
+  });
+
+
+  // ===== คลิกการ์ด KPI -> ตารางแยกรายหน่วยงาน (ผลรวมท้ายตารางตรงกับตัวเลขบนการ์ด) =====
+  function openKpiTable(kind) {
+      const st = lastKpiStats;
+      if (!st) return;
+      const depts = Object.keys(st.deptStats);
+      const D = (d) => st.deptStats[d];
+      const pct = (n, tot) => tot > 0 ? (n / tot * 100).toFixed(1) + '%' : '0.0%';
+      const compOf = (d) => D(d).compWithin + D(d).compOver;
+      const ipOf = (d) => D(d).inprogWithin + D(d).inprogOver;
+      let title, cols, rowsFn, foot, sortKey;
+      const totalAll = st.totalReceived;
+      const totalComp = st.compWithin + st.compOver;
+      const totalIp = st.inprogWithin + st.inprogOver;
+
+      if (kind === 'total') {
+          title = 'จำนวนเรื่องทั้งหมด แยกตามหน่วยงาน';
+          cols = ['หน่วยงาน', 'ได้รับ (เรื่อง)', 'ร้อยละของทั้งหมด'];
+          sortKey = d => D(d).received;
+          rowsFn = d => [D(d).received, pct(D(d).received, totalAll)];
+          foot = [totalAll, totalAll > 0 ? '100.0%' : '0.0%'];
+      } else if (kind === 'completed') {
+          title = 'ดำเนินการแล้วเสร็จ แยกตามหน่วยงาน';
+          cols = ['หน่วยงาน', 'ได้รับ (เรื่อง)', 'แล้วเสร็จ (เรื่อง)', 'ตรงเกณฑ์ ≤45 วัน', 'เกินเกณฑ์ >45 วัน', 'ร้อยละของที่ได้รับ'];
+          sortKey = d => compOf(d);
+          rowsFn = d => [D(d).received, compOf(d), D(d).compWithin, D(d).compOver, pct(compOf(d), D(d).received)];
+          foot = [totalAll, totalComp, st.compWithin, st.compOver, pct(totalComp, totalAll)];
+      } else if (kind === 'inprogress') {
+          title = 'อยู่ระหว่างดำเนินการ แยกตามหน่วยงาน';
+          cols = ['หน่วยงาน', 'ได้รับ (เรื่อง)', 'อยู่ระหว่างดำเนินการ (เรื่อง)', 'ตรงเกณฑ์ ≤45 วัน', 'เกินเกณฑ์ >45 วัน', 'ร้อยละของที่ได้รับ'];
+          sortKey = d => ipOf(d);
+          rowsFn = d => [D(d).received, ipOf(d), D(d).inprogWithin, D(d).inprogOver, pct(ipOf(d), D(d).received)];
+          foot = [totalAll, totalIp, st.inprogWithin, st.inprogOver, pct(totalIp, totalAll)];
+      } else {
+          title = 'ความครบถ้วนของข้อมูล (เฉพาะเรื่องที่แล้วเสร็จ) แยกตามหน่วยงาน';
+          cols = ['หน่วยงาน', 'แล้วเสร็จ (เรื่อง)', 'ข้อมูลครบถ้วน', 'ข้อมูลไม่ครบ', 'ร้อยละครบถ้วน'];
+          sortKey = d => compOf(d);
+          rowsFn = d => { const ok = Math.min(D(d).qOkCompleted, compOf(d)); return [compOf(d), ok, compOf(d) - ok, pct(ok, compOf(d))]; };
+          const qOk = Math.min(st.qualOkCompleted, totalComp);
+          foot = [totalComp, qOk, totalComp - qOk, pct(qOk, totalComp)];
+      }
+      const fmt = v => typeof v === 'number' ? cdNum(v) : v;
+      const sorted = depts.slice().sort((a, b) => sortKey(b) - sortKey(a));
+      let html = '<table class="cd-table"><thead><tr>' + cols.map(c => '<th>' + cdEsc(c) + '</th>').join('') + '</tr></thead><tbody>';
+      sorted.forEach(d => { html += '<tr><td>' + cdEsc(d) + '</td>' + rowsFn(d).map(v => '<td>' + fmt(v) + '</td>').join('') + '</tr>'; });
+      html += '</tbody><tfoot><tr><td>รวม</td>' + foot.map(v => '<td>' + fmt(v) + '</td>').join('') + '</tr></tfoot></table>';
+      if (!depts.length) html = '<div style="padding:24px;text-align:center;color:var(--ink-soft)">ไม่มีข้อมูล</div>';
+      document.getElementById('cdTitle').textContent = title;
+      document.getElementById('cdSub').textContent = document.getElementById('asOf') ? document.getElementById('asOf').textContent : '';
+      document.getElementById('cdBody').innerHTML = html;
+      cdBackdrop.classList.add('open');
+  }
+  ['total', 'completed', 'inprogress', 'quality'].forEach((kind, idx) => {
+      const card = document.querySelectorAll('.kpi-row .kpi')[idx];
+      if (!card) return;
+      card.title = 'คลิกเพื่อดูตารางข้อมูล';
+      card.addEventListener('click', () => openKpiTable(kind));
+  });
+
   Chart.register(slaCenterPlugin, barValuePlugin);
 
   function createOrUpdateChart(canvasId, type, data, extraOptions = {}) {
@@ -2265,6 +2471,11 @@
           data: data,
           options: { ...defaultOptions, ...extraOptions }
       });
+
+      const cv = document.getElementById(canvasId);
+      cv.classList.add('chart-clickable');
+      cv.title = 'คลิกเพื่อดูตารางข้อมูล';
+      cv.onclick = () => openChartTable(canvasId);
   }
 </script>
 
