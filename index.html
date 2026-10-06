@@ -815,7 +815,7 @@
         <div class="side-label"><i class="fa-solid fa-file-import"></i> นำเข้าข้อมูล</div>
         <div class="source-pill">
           <i class="fa-solid fa-link"></i>
-          <a href="https://docs.google.com/spreadsheets/d/1RAbeKwI2HQO48tQezlyzcA23pi0tyx61O1BvIsCkleQ/edit" target="_blank" rel="noopener noreferrer" id="sheetOpenLink" style="color:inherit;text-decoration:underline;text-underline-offset:2px;flex:1;">Google Sheet (ซิงก์อัตโนมัติ)</a>
+          <a href="https://docs.google.com/spreadsheets/d/1oB9yDgchIGPXj8ofOzWs16OVvWfX6JkTcc4ctqKBjkE/edit" target="_blank" rel="noopener noreferrer" id="sheetOpenLink" style="color:inherit;text-decoration:underline;text-underline-offset:2px;flex:1;">Google Sheet (ซิงก์อัตโนมัติ)</a>
           <button type="button" class="source-pill-x" id="autoRefreshOffBtn" title="ปิดการซิงก์อัตโนมัติ"><i class="fa-solid fa-xmark"></i></button>
         </div>
       </div>
@@ -1072,7 +1072,7 @@
           </div>
           <div class="panel">
             <h2><i class="fa-solid fa-bolt"></i> ประสิทธิภาพ (ตรงเวลา vs เกินกำหนด)</h2>
-            <div style="font-size:13px;color:#7b5a8f;margin:-4px 0 8px 0;">(ดำเนินการแล้วเสร็จ)</div>
+            <div style="font-size:13px;color:#7b5a8f;margin:-4px 0 8px 0;">(เฉพาะเรื่องที่ดำเนินการแล้วเสร็จ)</div>
             <div class="chart-wrap"><canvas id="effChart"></canvas></div>
           </div>
         </div>
@@ -1137,6 +1137,8 @@
           dt = excelSerialToDate(raw);
       } else {
           const str = String(raw).trim();
+          const gv = str.match(/^Date\((\d+),(\d+),(\d+)/);
+          if (gv) return parseFlexibleDate(new Date(Number(gv[1]), Number(gv[2]), Number(gv[3])));
           let m = str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
           if (m) {
               let d = Number(m[1]), mo = Number(m[2]), y = Number(m[3]);
@@ -1168,6 +1170,19 @@
       return hasPersonCols && !hasUnitCols;
   }
 
+  // จำนวนวันทำการ (จันทร์-ศุกร์) จากวันที่รับถึงวันที่กำหนด — ยังไม่หักวันหยุดนักขัตฤกษ์
+  function workingDaysBetween(from, to) {
+      let n = 0;
+      const d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+      const end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+      while (d < end) {
+          d.setDate(d.getDate() + 1);
+          const wd = d.getDay();
+          if (wd !== 0 && wd !== 6) n++;
+      }
+      return n;
+  }
+
   function aggregatePersonRows(personRows, criteriaDays) {
       const groups = new Map();
       personRows.forEach(raw => {
@@ -1186,7 +1201,7 @@
               groups.set(key, {
                   unit, monthTH, yearBE, typeLabel,
                   sortKey: yearBE * 12 + ((jsMonth - 9 + 12) % 12), // ปีงบประมาณเริ่ม ต.ค.
-                  received: 0, completed: 0, inProgress: 0, within: 0, overtime: 0, dataComplete: 0, dataIncomplete: 0
+                  received: 0, completed: 0, inProgress: 0, inProgOver: 0, within: 0, overtime: 0, dataComplete: 0, dataIncomplete: 0
               });
           }
           const g = groups.get(key);
@@ -1198,6 +1213,11 @@
               if (!isNaN(d)) { if (d <= criteriaDays) g.within += 1; else g.overtime += 1; }
           } else {
               g.inProgress += 1;
+              // เรื่องที่ยังค้างอยู่: เกิน 45 วันทำการหรือไม่
+              // ใช้ "จำนวนวันดำเนินการ" ถ้ามี ไม่มีก็นับวันทำการ (จ.-ศ.) จากวันที่รับถึงวันนี้
+              let dd = parseFloat(r['จำนวนวันดำเนินการ (วัน)']);
+              if (isNaN(dd)) dd = workingDaysBetween(receiveDt, new Date());
+              if (dd > criteriaDays) g.inProgOver += 1;
           }
           const imp = String(r['การนำเข้าข้อมูล'] || '').trim();
           if (imp === 'ครบถ้วน') g.dataComplete += 1;
@@ -1210,6 +1230,7 @@
               'จำนวนเรื่องที่ได้รับ (เรื่อง)': g.received,
               'จำนวนเรื่องที่ดำเนินการแล้วเสร็จ (เรื่อง)': g.completed,
               'อยู่ระหว่างดำเนินการ (เรื่อง)': g.inProgress,
+              'อยู่ระหว่างดำเนินการเกินระยะเวลา (เรื่อง)': g.inProgOver,
               ['จำนวนเรื่องที่แล้วเสร็จตามระยะเวลา ' + criteriaDays + ' วัน (เรื่อง)']: g.within,
               'เกินระยะเวลา (เรื่อง)': g.overtime,
               'นำเข้าข้อมูลครบถ้วน (เรื่อง)': g.dataComplete,
@@ -1290,7 +1311,9 @@
   const asOfEl = document.getElementById('asOf');
 
   // ===== Google Sheet live sync =====
-  const SHEET_ID = '1RAbeKwI2HQO48tQezlyzcA23pi0tyx61O1BvIsCkleQ';
+  const SHEET_ID = '1oB9yDgchIGPXj8ofOzWs16OVvWfX6JkTcc4ctqKBjkE';
+  const SHEET_UPDATE_NAME = 'วันที่อัพเดตข้อมูล'; // ชีทที่เก็บวันที่อัปเดตข้อมูล (อ่านจากเซลล์ A2)
+  const SHEET_UPDATE_CELL = 'A2';
   const SHEET_NAME = 'combined_kpi_unit'; // ชื่อแท็บในชีท — เปลี่ยนได้ถ้าข้อมูลอยู่คนละแท็บ
 
   const sheetSyncDot = document.getElementById('sheetSyncDot');
@@ -1307,7 +1330,7 @@
   // Loads Google Sheet data via a <script> tag (JSONP), which — unlike fetch() —
   // works even when this HTML file is opened directly from disk (file://) and
   // is not subject to CORS restrictions.
-  function fetchSheetViaJSONP() {
+  function fetchSheetViaJSONP(sheetName = SHEET_NAME, extraParams = '&headers=1') {
       return new Promise((resolve, reject) => {
           const cbName = 'gsheetCb_' + Math.random().toString(36).slice(2);
           const timeoutId = setTimeout(() => {
@@ -1328,7 +1351,7 @@
 
           const script = document.createElement('script');
           const tqx = encodeURIComponent(`out:json;responseHandler:${cbName}`);
-          script.src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=${tqx}&sheet=${encodeURIComponent(SHEET_NAME)}&headers=1&_ts=${Date.now()}`;
+          script.src = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=${tqx}&sheet=${encodeURIComponent(sheetName)}${extraParams}&_ts=${Date.now()}`;
           script.onerror = () => {
               cleanup();
               reject(new Error('โหลดข้อมูลจาก Google Sheet ไม่สำเร็จ (ตรวจสอบการแชร์ชีทหรืออินเทอร์เน็ต)'));
@@ -1345,16 +1368,47 @@
           throw new Error('รูปแบบข้อมูลที่ได้จาก Google Sheet ไม่ถูกต้อง');
       }
       const cols = resp.table.cols.map(c => c.label || c.id);
+      const colTypes = resp.table.cols.map(c => c.type);
       const rows = resp.table.rows || [];
       return rows.map(r => {
           const obj = {};
           cols.forEach((label, idx) => {
               const cell = r.c && r.c[idx];
-              const v = cell ? cell.v : null;
+              let v = cell ? cell.v : null;
+              // คอลัมน์วันที่: Google ส่งมาเป็น "Date(ปี,เดือน0-11,วัน)" -> แปลงเป็น DD/MM/YYYY
+              if (typeof v === 'string') {
+                  const m = v.match(/^Date\((\d+),(\d+),(\d+)/);
+                  if (m) v = String(m[3]).padStart(2, '0') + '/' + String(Number(m[2]) + 1).padStart(2, '0') + '/' + m[1];
+              }
               obj[label] = (v === null || v === undefined) ? '' : String(v);
           });
           return obj;
       });
+  }
+
+  // อ่านวันที่อัปเดตข้อมูลจากชีท "วันที่อัพเดตข้อมูล" เซลล์ A2
+  // คืนข้อความวันที่ภาษาไทย เช่น "6 ต.ค. 2569" หรือ null ถ้าอ่านไม่ได้
+  async function fetchUpdateDateText() {
+      try {
+          const resp = await fetchSheetViaJSONP(SHEET_UPDATE_NAME, '&headers=0&range=' + SHEET_UPDATE_CELL);
+          const rows = resp && resp.table && resp.table.rows;
+          const cell = rows && rows[0] && rows[0].c && rows[0].c[0];
+          if (!cell || (cell.v === null || cell.v === undefined) && !cell.f) return null;
+          let raw = cell.v;
+          let dt = null;
+          if (typeof raw === 'string') {
+              const m = raw.match(/^Date\((\d+),(\d+),(\d+)/);
+              if (m) dt = new Date(Number(m[1]), Number(m[2]), Number(m[3]));
+          }
+          if (!dt) dt = parseFlexibleDate(raw);
+          if (!dt && cell.f) dt = parseFlexibleDate(cell.f);
+          if (dt) return dt.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+          // ถ้าไม่ใช่รูปแบบวันที่ที่รู้จัก แสดงข้อความตามที่เขียนไว้ในเซลล์
+          return String(cell.f || raw).trim() || null;
+      } catch (e) {
+          console.warn('อ่านวันที่อัปเดตจากชีทไม่ได้:', e);
+          return null;
+      }
   }
 
   function setSheetStatus(state, text) {
@@ -1376,10 +1430,16 @@
 
       try {
           const resp = await fetchSheetViaJSONP();
-          const newData = prepareRows(gvizResponseToRows(resp)).rows.filter(isDataRow);
+          const sheetRows = gvizResponseToRows(resp);
+          const prep = prepareRows(sheetRows);
+          const newData = prep.rows.filter(isDataRow);
 
           if (newData.length === 0) {
-              throw new Error('ไม่พบข้อมูลในชีท (ตรวจสอบสิทธิ์การแชร์ หรือชื่อคอลัมน์)');
+              if (prep.autoCounted) {
+                  throw new Error('พบข้อมูลระดับบุคคล ' + sheetRows.length + ' แถว แต่นับสรุปไม่ได้ — ตรวจสอบคอลัมน์ "วันที่รับ" (ต้องเป็นวันที่ เช่น 07/01/2026) และ "หน่วยงาน" ในแท็บ ' + SHEET_NAME);
+              }
+              const found = sheetRows.length ? Object.keys(sheetRows[0]).slice(0, 8).join(', ') : '(ไม่พบแถว)';
+              throw new Error('ไม่พบข้อมูลที่ใช้ได้ในแท็บ "' + SHEET_NAME + '" — คอลัมน์ที่อ่านได้: ' + found);
           }
 
           rawData = newData;
@@ -1398,7 +1458,8 @@
           dashboard.style.display = 'block';
 
           const now = new Date();
-          asOfEl.textContent = 'ข้อมูล ณ ' + now.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric' });
+          const updateText = await fetchUpdateDateText();
+          asOfEl.textContent = updateText ? 'ข้อมูล ณ วันที่ ' + updateText : 'ไม่พบวันที่อัปเดต';
           const syncTimeStr = now.toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' });
           sheetLastSync.textContent = 'ซิงค์ล่าสุด ' + syncTimeStr + ' น. · ' + rawData.length.toLocaleString('th-TH') + ' รายการ';
           setSheetStatus('ok', 'เชื่อมต่อ Google Sheet แล้ว');
@@ -1715,7 +1776,7 @@
       dashboard.style.display = 'block';
 
       const now = new Date();
-      asOfEl.textContent = 'ข้อมูล ณ ' + now.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric' });
+      asOfEl.textContent = 'ข้อมูล ณ วันที่ ' + now.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric' });
   }
 
   function handleFile(e) {
@@ -1841,7 +1902,12 @@
           // อยู่ระหว่างดำเนินการ = ได้รับ - แล้วเสร็จ
           // เกินเกณฑ์ = (เกินระยะเวลาทั้งหมด - ที่แล้วเสร็จแต่เกิน) ไม่เกินจำนวนที่ค้างอยู่
           const rowInprog = Math.max(0, received - completed);
-          const rowInprogOver = Math.min(rowInprog, Math.max(0, overdue - rowCompOver));
+          // อยู่ระหว่างดำเนินการ: ถ้ามีคอลัมน์ "อยู่ระหว่างดำเนินการเกินระยะเวลา" ใช้ค่านั้นตรง ๆ
+          const ipOverKey = 'อยู่ระหว่างดำเนินการเกินระยะเวลา (เรื่อง)';
+          const hasIpOver = row[ipOverKey] !== undefined && row[ipOverKey] !== '';
+          const rowInprogOver = hasIpOver
+              ? Math.min(rowInprog, getVal(ipOverKey))
+              : Math.min(rowInprog, Math.max(0, overdue - rowCompOver));
           const rowInprogWithin = rowInprog - rowInprogOver;
           // คุณภาพข้อมูล นับเฉพาะเรื่องที่ดำเนินการแล้วเสร็จ
           const rowQOkC = Math.min(rowComplete, completed);
